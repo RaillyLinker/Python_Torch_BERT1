@@ -34,6 +34,18 @@ class SegmentEmbedding(nn.Module):
         return self.embedding(x)
 
 
+class InputEmbedding(nn.Module):
+    def __init__(self, vocab_size, d_model, dropout=0.1):
+        super().__init__()
+        self.token = TokenEmbedding(vocab_size=vocab_size, emb_size=d_model)
+        self.position = PositionalEmbedding(d_model=d_model)
+        self.segment = SegmentEmbedding(embed_size=d_model)
+        self.dropout = nn.Dropout(p=dropout)
+
+    def forward(self, x, segment_info):
+        return self.dropout(self.token(x) + self.position(x) + self.segment(segment_info))
+
+
 class Attention(nn.Module):
     def __init__(self, dropout=0.1):
         super().__init__()
@@ -146,10 +158,7 @@ class BERT(nn.Module):
 
         self.feed_forward_hidden = hidden * 4
 
-        self.token = TokenEmbedding(vocab_size=vocab_size, emb_size=hidden)
-        self.position = PositionalEmbedding(d_model=hidden)
-        self.segment = SegmentEmbedding(embed_size=hidden)
-        self.dropout = nn.Dropout(p=dropout)
+        self.inputEmbedding = InputEmbedding(vocab_size, hidden, dropout)
 
         self.transformer_blocks = nn.ModuleList(
             [EncoderBlock(hidden, attn_heads, hidden * 4, dropout) for _ in range(n_layers)])
@@ -157,8 +166,7 @@ class BERT(nn.Module):
     def forward(self, x, segment_info):
         mask = (x != 0).unsqueeze(1).unsqueeze(2)
 
-        x = self.token(x) + self.position(x) + self.segment(segment_info)
-        x = self.dropout(x)
+        x = self.inputEmbedding(x, segment_info)
 
         for transformer in self.transformer_blocks:
             x = transformer(x, mask)
@@ -172,7 +180,7 @@ class BERTLM(nn.Module):
         self.bert = bert
         self.next_sentence = NextSentencePrediction(self.bert.hidden)
         # embedding weight를 직접 넘김
-        self.mask_lm = MaskedLanguageModel(self.bert.hidden, self.bert.token.embedding.weight)
+        self.mask_lm = MaskedLanguageModel(self.bert.hidden, self.bert.inputEmbedding.token.embedding.weight)
 
     def forward(self, x, segment_label):
         x = self.bert(x, segment_label)

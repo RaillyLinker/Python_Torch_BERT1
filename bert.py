@@ -141,7 +141,6 @@ class EncoderBlock(nn.Module):
         self.feed_forward = PositionwiseFeedForward(d_model=hidden, d_ff=feed_forward_hidden, dropout=dropout)
         self.input_sublayer = SublayerConnection(size=hidden, dropout=dropout)
         self.output_sublayer = SublayerConnection(size=hidden, dropout=dropout)
-        self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, x, mask):
         x = self.input_sublayer(x, lambda _x: self.attention(_x, _x, _x, mask=mask))
@@ -160,7 +159,7 @@ class BERT(nn.Module):
 
         self.inputEmbedding = InputEmbedding(vocab_size, hidden, dropout)
 
-        self.transformer_blocks = nn.ModuleList(
+        self.encoder_blocks = nn.ModuleList(
             [EncoderBlock(hidden, attn_heads, hidden * 4, dropout) for _ in range(n_layers)])
 
     def forward(self, x, segment_info):
@@ -168,7 +167,7 @@ class BERT(nn.Module):
 
         x = self.inputEmbedding(x, segment_info)
 
-        for transformer in self.transformer_blocks:
+        for transformer in self.encoder_blocks:
             x = transformer(x, mask)
 
         return x
